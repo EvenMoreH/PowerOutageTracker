@@ -31,7 +31,8 @@ Edit `secrets/config.json` with your values:
 {
   "city": "Your_City",
   "destination": "Your_Street_Name_Only",
-  "healthcheck_url": "Your_Healthchecks.io_URL"
+  "healthcheck_url": "Your_Healthchecks.io_URL",
+  "interval_hours": 6
 }
 ```
 
@@ -40,6 +41,20 @@ Edit `secrets/config.json` with your values:
 | `city` | City name as it appears on the PGE website |
 | `destination` | Street name (partial match supported) |
 | `healthcheck_url` | Your Healthchecks.io ping URL |
+| `interval_hours` | How often to check (0-24). Set to `0` for single run mode |
+
+### Scheduling Behavior
+
+The `interval_hours` setting controls how the container runs:
+
+| Value | Behavior |
+|-------|----------|
+| `0` | Run once and exit |
+| `1-24` | Run continuously, checking every N hours |
+
+Values outside 0-24 are automatically clamped (e.g., `26` becomes `24`, `-5` becomes `0`).
+
+For Portainer or standalone Docker without job scheduling, set `interval_hours` to a value like `6` to keep the container running and checking periodically.
 
 ## Running
 
