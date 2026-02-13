@@ -1,0 +1,9 @@
+services:
+  tracker:
+    build: .
+    secrets:
+      - config.json
+
+secrets:
+  config.json:
+    file: ./secrets/config.json
