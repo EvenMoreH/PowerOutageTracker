@@ -31,8 +31,8 @@ Edit `secrets/config.json` with your values:
 {
   "city": "Your_City",
   "destination": "Your_Street_Name_Only",
-  "healthcheck_url": "Your_Healthchecks.io_URL",
-  "interval_hours": 6
+   "healthcheck_url": "Your_Healthchecks.io_URL",
+   "app_error_healthcheck_url": "Your_Healthchecks.io_AppFail_URL"
 }
 ```
 
@@ -41,20 +41,17 @@ Edit `secrets/config.json` with your values:
 | `city` | City name as it appears on the PGE website |
 | `destination` | Street name (partial match supported) |
 | `healthcheck_url` | Your Healthchecks.io ping URL |
-| `interval_hours` | How often to check (0-24). Set to `0` for single run mode |
+| `app_error_healthcheck_url` | Healthchecks.io `/fail` URL used only when the app itself errors (e.g. selector timeout, unexpected exception) |
 
 ### Scheduling Behavior
 
-The `interval_hours` setting controls how the container runs:
+The app now runs continuously and performs checks exactly 3 times per day at fixed UTC hours:
 
-| Value | Behavior |
-|-------|----------|
-| `0` | Run once and exit |
-| `1-24` | Run continuously, checking every N hours |
+- `10:00` UTC
+- `16:00` UTC
+- `21:00` UTC
 
-Values outside 0-24 are automatically clamped (e.g., `26` becomes `24`, `-5` becomes `0`).
-
-For Portainer or standalone Docker without job scheduling, set `interval_hours` to a value like `6` to keep the container running and checking periodically.
+No interval setting is required.
 
 ## Running
 
@@ -83,7 +80,7 @@ playwright install chromium
 Run with environment variable:
 
 ```bash
-CONFIG_JSON='{"city":"...","destination":"...","healthcheck_url":"..."}' python main.py
+CONFIG_JSON='{"city":"...","destination":"...","healthcheck_url":"...","app_error_healthcheck_url":"..."}' python main.py
 ```
 
 ## Deployment
@@ -106,11 +103,7 @@ Since Docker Secrets require Swarm mode, use a bind mount on the host:
 
 ### Scheduling
 
-Run daily via cron or a container scheduler. Example cron entry:
-
-```
-0 8 * * * docker run --rm -v /opt/poweroutage/config.json:/run/secrets/config.json:ro power-outage-tracker
-```
+No external cron is required. Keep the container running; it schedules checks internally at `10:00`, `16:00`, and `21:00` UTC.
 
 ## Exit Codes
 

@@ -2,7 +2,7 @@ import json
 import os
 import time
 from playwright.sync_api import Playwright, sync_playwright, TimeoutError as PlaywrightTimeoutError
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 import sys
 import requests
 
@@ -28,7 +28,23 @@ city: str = config["city"]
 city_click: str = city + " - gmina: " + city
 destination: str = config["destination"]
 HEALTHCHECK_URL: str = config["healthcheck_url"]
-INTERVAL_HOURS: int = min(max(config.get("interval_hours", 0), 0), 24)  # clamp 0-24
+APP_ERROR_HEALTHCHECK_URL: str = config["app_error_healthcheck_url"]
+SCHEDULE_HOURS_UTC: list[int] = [10, 16, 21]
+
+
+def ping_app_error_healthcheck() -> None:
+    requests.get(APP_ERROR_HEALTHCHECK_URL, timeout=10)
+
+
+def get_next_run_time_utc(now_utc: datetime) -> datetime:
+    for hour in SCHEDULE_HOURS_UTC:
+        candidate = now_utc.replace(hour=hour, minute=0, second=0, microsecond=0)
+        if now_utc <= candidate:
+            return candidate
+
+    return (now_utc + timedelta(days=1)).replace(
+        hour=SCHEDULE_HOURS_UTC[0], minute=0, second=0, microsecond=0
+    )
 
 
 def run(playwright: Playwright) -> None:
@@ -67,9 +83,11 @@ def run(playwright: Playwright) -> None:
 
     except PlaywrightTimeoutError as e:
         print(f"ERROR: Page element timed out - {e}")
+        ping_app_error_healthcheck()
         sys.exit(2)
     except Exception as e:
         print(f"ERROR: Unexpected error - {e}")
+        ping_app_error_healthcheck()
         sys.exit(3)
     finally:
         if context:
@@ -79,15 +97,16 @@ def run(playwright: Playwright) -> None:
 
 
 if __name__ == "__main__":
-    if INTERVAL_HOURS > 0:
-        print(f"Starting scheduler - checking every {INTERVAL_HOURS} hour(s)")
-        while True:
-            print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running check...")
-            with sync_playwright() as playwright:
-                run(playwright)
-            print(f"Next check in {INTERVAL_HOURS} hour(s)")
-            time.sleep(INTERVAL_HOURS * 3600)
-    else:
-        # single run mode
+    print("Starting scheduler - checks run daily at 10:00, 16:00, 21:00 UTC")
+    while True:
+        now_utc = datetime.now(timezone.utc)
+        next_run_utc = get_next_run_time_utc(now_utc)
+        sleep_seconds = max((next_run_utc - now_utc).total_seconds(), 0)
+
+        print(f"Next check scheduled for {next_run_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        if sleep_seconds > 0:
+            time.sleep(sleep_seconds)
+
+        print(f"\n[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC] Running check...")
         with sync_playwright() as playwright:
             run(playwright)
